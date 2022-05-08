@@ -1,6 +1,6 @@
 [package]
-name = "mmap-fixed-fixed"
-version = "0.1.1"
+name = "mmap-fixed"
+version = "0.1.2"
 authors = [
   "Khang <khang06@users.noreply.github.com>",
   "Elliott Linder <elliott@linder.bz>",
