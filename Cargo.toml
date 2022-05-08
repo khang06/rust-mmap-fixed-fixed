@@ -1,6 +1,6 @@
 [package]
 name = "mmap-fixed-fixed"
-version = "0.1.0"
+version = "0.1.1"
 authors = [
   "Khang <khang06@users.noreply.github.com>",
   "Elliott Linder <elliott@linder.bz>",
@@ -16,6 +16,7 @@ This is a fork of a fork of the original rust-mmap with updated dependencies and
 fix for the Windows version. This exists only because there are no other
 alternative crates for `MAP_FIXED` allocations.
 """
+repository = "https://github.com/khang06/rust-mmap-fixed-fixed"
 
 [target."cfg(unix)".dependencies]
 libc = "0.2"
