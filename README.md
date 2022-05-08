@@ -1,4 +1,4 @@
-rust-mmap-fixed
+rust-mmap-fixed-fixed
 =========
 
 A Rust library for dealing with memory mapped files, originally extracted from
@@ -6,23 +6,12 @@ the Rust standard library source code before it was removed.
 
 ## NOTE
 
-This is a fork of the original *rust-mmap* with updated dependencies and a
+This is a fork of a fork of the original *rust-mmap* with updated dependencies and a
 fix for the Windows version. This exists only because there are no other
 alternative crates for `MAP_FIXED` allocations.
 
 See: [memmap-rs#21](https://github.com/danburkert/memmap-rs/issues/21).
 
-## Usage
+This second-degree fork exists because the first fork hasn't been updated to support winapi v0.3.
 
-Add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-mmap-fixed = "*"
-```
-
-and this to your crate root:
-
-```rust
-extern crate mmap_fixed;
-```
+See: [detour-rs#32](https://github.com/darfink/detour-rs/issues/32).

@@ -1,7 +1,8 @@
 [package]
-name = "mmap-fixed"
-version = "0.1.5"
+name = "mmap-fixed-fixed"
+version = "0.1.0"
 authors = [
+  "Khang <khang06@users.noreply.github.com>",
   "Elliott Linder <elliott@linder.bz>",
   "Rick Branson <rick@diodeware.com>",
   "The Rust Project Developers"
@@ -11,7 +12,7 @@ readme = "README.md"
 description = """
 A library for dealing with memory-mapped I/O
 
-This is a fork of the original rust-mmap with updated dependencies and a
+This is a fork of a fork of the original rust-mmap with updated dependencies and a
 fix for the Windows version. This exists only because there are no other
 alternative crates for `MAP_FIXED` allocations.
 """
@@ -20,8 +21,7 @@ alternative crates for `MAP_FIXED` allocations.
 libc = "0.2"
 
 [target."cfg(windows)".dependencies]
-kernel32-sys = "0.2.2"
-winapi = "0.2"
+winapi = { version = "0.3.9", features = ["memoryapi", "sysinfoapi", "handleapi"] }
 
 [dev-dependencies]
 tempdir = "0.3"

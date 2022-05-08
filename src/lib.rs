@@ -5,8 +5,6 @@
 // See LICENSE file at top level directory.
 //
 
-#[cfg(windows)]
-extern crate kernel32;
 #[cfg(unix)]
 extern crate libc;
 #[cfg(windows)]
@@ -41,7 +39,7 @@ fn page_size() -> usize {
 fn page_size() -> usize {
     unsafe {
         let mut info = mem::zeroed();
-        kernel32::GetSystemInfo(&mut info);
+        winapi::um::sysinfoapi::GetSystemInfo(&mut info);
         return info.dwPageSize as usize;
     }
 }
@@ -86,7 +84,7 @@ pub enum MapOption {
     MapAddr(*const u8),
     /// Create a memory mapping for a file with a given HANDLE.
     #[cfg(windows)]
-    MapFd(winapi::HANDLE),
+    MapFd(winapi::shared::ntdef::HANDLE),
     /// Create a memory mapping for a file with a given fd.
     #[cfg(not(windows))]
     MapFd(c_int),
@@ -303,7 +301,7 @@ impl MemoryMap {
     /// Create a new mapping with the given `options`, at least `min_len` bytes long.
     #[allow(non_snake_case)]
     pub fn new(min_len: usize, options: &[MapOption]) -> Result<MemoryMap, MapError> {
-        use winapi::{DWORD, LPVOID, SIZE_T};
+        use winapi::shared::minwindef::{DWORD, LPVOID};
 
         let mut lpAddress: LPVOID = ptr::null_mut();
         let mut readable = false;
@@ -338,27 +336,31 @@ impl MemoryMap {
         }
 
         let flProtect = match (executable, readable, writable) {
-            (false, false, false) if handle.is_none() => winapi::PAGE_NOACCESS,
-            (false, true, false) => winapi::PAGE_READONLY,
-            (false, true, true) => winapi::PAGE_READWRITE,
-            (true, false, false) if handle.is_none() => winapi::PAGE_EXECUTE,
-            (true, true, false) => winapi::PAGE_EXECUTE_READ,
-            (true, true, true) => winapi::PAGE_EXECUTE_READWRITE,
+            (false, false, false) if handle.is_none() => winapi::um::winnt::PAGE_NOACCESS,
+            (false, true, false) => winapi::um::winnt::PAGE_READONLY,
+            (false, true, true) => winapi::um::winnt::PAGE_READWRITE,
+            (true, false, false) if handle.is_none() => winapi::um::winnt::PAGE_EXECUTE,
+            (true, true, false) => winapi::um::winnt::PAGE_EXECUTE_READ,
+            (true, true, true) => winapi::um::winnt::PAGE_EXECUTE_READWRITE,
             _ => return Err(ErrUnsupProt),
         };
 
         if let Some(handle) = handle {
             let dwDesiredAccess = match (executable, readable, writable) {
-                (false, true, false) => winapi::FILE_MAP_READ,
-                (false, true, true) => winapi::FILE_MAP_WRITE,
-                (true, true, false) => winapi::FILE_MAP_READ | winapi::FILE_MAP_EXECUTE,
-                (true, true, true) => winapi::FILE_MAP_WRITE | winapi::FILE_MAP_EXECUTE,
+                (false, true, false) => winapi::um::memoryapi::FILE_MAP_READ,
+                (false, true, true) => winapi::um::memoryapi::FILE_MAP_WRITE,
+                (true, true, false) => {
+                    winapi::um::memoryapi::FILE_MAP_READ | winapi::um::memoryapi::FILE_MAP_EXECUTE
+                }
+                (true, true, true) => {
+                    winapi::um::memoryapi::FILE_MAP_WRITE | winapi::um::memoryapi::FILE_MAP_EXECUTE
+                }
                 _ => return Err(ErrUnsupProt), // Actually, because of the check above,
                                                // we should never get here.
             };
             unsafe {
                 let hFile = handle;
-                let mapping = kernel32::CreateFileMappingW(
+                let mapping = winapi::um::memoryapi::CreateFileMappingW(
                     hFile,
                     ptr::null_mut(),
                     flProtect,
@@ -369,10 +371,10 @@ impl MemoryMap {
                 if mapping == ptr::null_mut() {
                     return Err(ErrCreateFileMappingW(errno()));
                 }
-                if errno() == winapi::ERROR_ALREADY_EXISTS as i32 {
+                if errno() == winapi::shared::winerror::ERROR_ALREADY_EXISTS as i32 {
                     return Err(ErrAlreadyExists);
                 }
-                let r = kernel32::MapViewOfFile(
+                let r = winapi::um::memoryapi::MapViewOfFile(
                     mapping,
                     dwDesiredAccess,
                     ((len as u64) >> 32) as DWORD,
@@ -392,11 +394,12 @@ impl MemoryMap {
             if offset != 0 {
                 return Err(ErrUnsupOffset);
             }
+
             let r = unsafe {
-                kernel32::VirtualAlloc(
+                winapi::um::memoryapi::VirtualAlloc(
                     lpAddress,
-                    len as SIZE_T,
-                    winapi::MEM_COMMIT | winapi::MEM_RESERVE,
+                    len,
+                    winapi::um::winnt::MEM_COMMIT | winapi::um::winnt::MEM_RESERVE,
                     flProtect,
                 )
             };
@@ -414,10 +417,9 @@ impl MemoryMap {
     /// Granularity of MapAddr() and MapOffset() parameter values.
     /// This may be greater than the value returned by page_size().
     pub fn granularity() -> usize {
-        use std::mem;
         unsafe {
             let mut info = mem::zeroed();
-            kernel32::GetSystemInfo(&mut info);
+            winapi::um::sysinfoapi::GetSystemInfo(&mut info);
 
             return info.dwAllocationGranularity as usize;
         }
@@ -429,7 +431,8 @@ impl Drop for MemoryMap {
     /// Unmap the mapping. Panics the task if any of `VirtualFree`,
     /// `UnmapViewOfFile`, or `CloseHandle` fail.
     fn drop(&mut self) {
-        use winapi::{FALSE, HANDLE, LPCVOID};
+        use winapi::shared::minwindef::LPCVOID;
+        use winapi::shared::ntdef::HANDLE;
         if self.len == 0 {
             return;
         }
@@ -437,15 +440,20 @@ impl Drop for MemoryMap {
         unsafe {
             match self.kind {
                 MapVirtual => {
-                    if kernel32::VirtualFree(self.data as *mut _, 0, winapi::MEM_RELEASE) == 0 {
+                    if winapi::um::memoryapi::VirtualFree(
+                        self.data as *mut _,
+                        0,
+                        winapi::um::winnt::MEM_RELEASE,
+                    ) == 0
+                    {
                         println!("VirtualFree failed: {}", errno());
                     }
                 }
                 MapFile(mapping) => {
-                    if kernel32::UnmapViewOfFile(self.data as LPCVOID) == FALSE {
+                    if winapi::um::memoryapi::UnmapViewOfFile(self.data as LPCVOID) == 0 {
                         println!("UnmapViewOfFile failed: {}", errno());
                     }
-                    if kernel32::CloseHandle(mapping as HANDLE) == FALSE {
+                    if winapi::um::handleapi::CloseHandle(mapping as HANDLE) == 0 {
                         println!("CloseHandle failed: {}", errno());
                     }
                 }
@@ -509,9 +517,9 @@ mod tests {
         }
 
         #[cfg(windows)]
-        fn get_fd(file: &fs::File) -> winapi::HANDLE {
+        fn get_fd(file: &fs::File) -> winapi::shared::ntdef::HANDLE {
             use std::os::windows::io::AsRawHandle;
-            file.as_raw_handle() as winapi::HANDLE
+            file.as_raw_handle() as winapi::shared::ntdef::HANDLE
         }
 
         let tmpdir = tempdir::TempDir::new("").unwrap();
