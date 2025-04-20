@@ -17,6 +17,7 @@ fix for the Windows version. This exists only because there are no other
 alternative crates for `MAP_FIXED` allocations.
 """
 repository = "https://github.com/khang06/rust-mmap-fixed-fixed"
+edition = "2018"
 
 [target."cfg(unix)".dependencies]
 libc = "0.2"
